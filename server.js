@@ -22,7 +22,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+// CORS configuration - allow requests from any origin
+app.use(cors({
+  origin: '*', // Allow all origins - no restrictions
+  credentials: false, // Set to false when using origin: '*'
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Additional CORS headers for all responses
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -129,10 +152,13 @@ async function startServer() {
       console.log('[Server] Schema caching will be attempted when database becomes available.');
     }
     
-    app.listen(PORT, () => {
+    // Listen on all network interfaces (0.0.0.0) to allow external access
+    app.listen(PORT, '0.0.0.0', () => {
       console.log('[Server] ========================================');
       console.log(`[Server] Server is running on port ${PORT}`);
-      console.log(`[Server] API endpoint: http://localhost:${PORT}/api/chat`);
+      console.log(`[Server] Listening on all interfaces (0.0.0.0:${PORT})`);
+      console.log(`[Server] Local access: http://localhost:${PORT}/api/chat`);
+      console.log(`[Server] Network access: http://0.0.0.0:${PORT}/api/chat`);
       console.log(`[Server] Health endpoint: http://localhost:${PORT}/api/vector-health`);
       console.log('[Server] ========================================');
       

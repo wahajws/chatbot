@@ -5,7 +5,10 @@ import ChatVisualization from '../components/ChatVisualization';
 import { detectVisualization, generateChartData } from '../utils/visualizationDetector';
 import './Chatbot.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+// Get API URL at runtime to ensure it uses current hostname
+const getApiUrl = () => getApiBaseUrl();
 
 const Chatbot = () => {
   const [messages, setMessages] = useState([]);
@@ -26,7 +29,8 @@ const Chatbot = () => {
 
   const loadChatHistory = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/chat/history?limit=10`);
+      const apiUrl = getApiUrl();
+      const response = await axios.get(`${apiUrl}/api/chat/history?limit=10`);
       if (response.data.success && response.data.messages.length > 0) {
         const formattedMessages = response.data.messages
           .reverse()
@@ -63,7 +67,8 @@ const Chatbot = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/chat`, {
+      const apiUrl = getApiUrl();
+      const response = await axios.post(`${apiUrl}/api/chat`, {
         message: userMessage
       });
 

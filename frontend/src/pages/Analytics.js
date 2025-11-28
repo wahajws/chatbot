@@ -18,7 +18,10 @@ import {
 } from 'recharts';
 import './Analytics.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+// Get API URL at runtime to ensure it uses current hostname
+const getApiUrl = () => getApiBaseUrl();
 
 const COLORS = ['#00f0ff', '#7c3aed', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -68,8 +71,9 @@ const Analytics = () => {
       setLoading(true);
       setError(null);
 
-      const statsRes = await axios.get(`${API_BASE_URL}/api/analytics/stats`);
-      const chartsRes = await axios.get(`${API_BASE_URL}/api/analytics/charts`);
+      const apiUrl = getApiUrl();
+      const statsRes = await axios.get(`${apiUrl}/api/analytics/stats`);
+      const chartsRes = await axios.get(`${apiUrl}/api/analytics/charts`);
 
       setStats(statsRes.data?.stats || null);
       setCharts(chartsRes.data?.charts || []);
@@ -83,7 +87,8 @@ const Analytics = () => {
 
   const fetchSuggestions = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/analytics/suggestions`);
+      const apiUrl = getApiUrl();
+      const res = await axios.get(`${apiUrl}/api/analytics/suggestions`);
       if (res.data.success) {
         setSuggestions(res.data.suggestions || []);
       }
@@ -107,7 +112,8 @@ const Analytics = () => {
       setQueryLoading(true);
       setError(null);
 
-      const res = await axios.post(`${API_BASE_URL}/api/analytics/query`, {
+      const apiUrl = getApiUrl();
+      const res = await axios.post(`${apiUrl}/api/analytics/query`, {
         query: queryText.trim()
       });
 
@@ -150,7 +156,8 @@ const Analytics = () => {
 
     try {
       setInsightsLoading(true);
-      const res = await axios.post(`${API_BASE_URL}/api/analytics/insights`, {
+      const apiUrl = getApiUrl();
+      const res = await axios.post(`${apiUrl}/api/analytics/insights`, {
         chart: chart,
         query: chart.title
       });

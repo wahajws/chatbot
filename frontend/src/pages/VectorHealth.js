@@ -16,7 +16,10 @@ import {
 } from 'recharts';
 import './VectorHealth.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+// Get API URL at runtime to ensure it uses current hostname
+const getApiUrl = () => getApiBaseUrl();
 
 const VectorHealth = () => {
   const [healthData, setHealthData] = useState(null);
@@ -43,7 +46,8 @@ const VectorHealth = () => {
   const fetchHealthData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/vector-health`);
+      const apiUrl = getApiUrl();
+      const response = await axios.get(`${apiUrl}/api/vector-health`);
       setHealthData(response.data);
       setError(null);
     } catch (err) {

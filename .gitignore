@@ -1,0 +1,17 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+uploads/
+*.log
+.DS_Store
+.cache/
+*.pem
+*.key
+*.p12
+dist/
+build/
+coverage/
+
+
+

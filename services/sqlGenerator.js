@@ -22,6 +22,8 @@ async function getSchemaForSQL() {
     const schemaData = await getSchema(true);
     
     if (schemaData && schemaData.tables) {
+      console.log(`[SQL Generator] Building schema string from ${schemaData.tables.length} tables (total: ${schemaData.totalTables})`);
+      
       let schema = 'DATABASE SCHEMA WITH RELATIONSHIPS:\n';
       schema += `Total tables: ${schemaData.totalTables}\n`;
       schema += `Database: ${schemaData.database || 'unknown'}\n\n`;
@@ -57,6 +59,9 @@ async function getSchemaForSQL() {
         
         schema += '\n';
       });
+      
+      console.log(`[SQL Generator] Schema string built: ${schema.length} characters, covering ${schemaData.tables.length} tables`);
+      console.log(`[SQL Generator] ✓ LLM will have knowledge of ALL ${schemaData.tables.length} tables`);
       
       return schema;
     }

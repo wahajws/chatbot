@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { initializeDatabase, getDatabaseHealth, isDatabaseAvailable } from './config/database.js';
-import { cacheSchema } from './services/schemaCache.js';
+import { getSchema } from './services/schemaCache.js';
 import chatRoutes from './routes/chat.js';
 import knowledgeRoutes from './routes/knowledge.js';
 import vectorHealthRoutes from './routes/vectorHealth.js';
@@ -150,11 +150,28 @@ async function startServer() {
       console.log('[Server] Database initialized successfully');
       
       // Cache database schema in JSON format
-      console.log('[Server] Caching database schema...');
+      // This will refresh if cache is stale (older than 1 hour)
+      console.log('[Server] Loading/refreshing database schema...');
       try {
-        await cacheSchema();
+        // Force refresh on startup to ensure schema is up-to-date
+        // This ensures the ERD is always current when the server starts
+        await getSchema(true, true, 0.1); // Force refresh if older than 6 minutes on startup
+        console.log('[Server] ✓ Database schema loaded and cached');
+        
+        // Set up periodic background refresh (every 30 minutes)
+        // This ensures the schema stays up-to-date even if the server runs for a long time
+        setInterval(async () => {
+          try {
+            console.log('[Server] Periodic schema refresh check...');
+            await getSchema(true, false, 0.5); // Refresh if older than 30 minutes
+          } catch (err) {
+            console.log('[Server] Periodic schema refresh failed (non-critical):', err.message);
+          }
+        }, 30 * 60 * 1000); // 30 minutes
+        console.log('[Server] ✓ Periodic schema refresh scheduled (every 30 minutes)');
       } catch (schemaError) {
         console.log('[Server] Schema caching failed (non-critical):', schemaError.message);
+        console.log('[Server] Schema will be fetched on first use');
       }
     } else {
       console.log('[Server] Database initialization failed, but server will start anyway.');

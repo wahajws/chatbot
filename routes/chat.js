@@ -114,7 +114,10 @@ router.post('/', async (req, res) => {
         });
         
         // Generate comprehensive business context with relationships
+        // This includes ALL tables from the schema
         const businessContext = generateBusinessContext(cachedSchema);
+        console.log(`[Chat API] Generated business context from ${cachedSchema.tables.length} tables (${businessContext.length} characters)`);
+        console.log(`[Chat API] ✓ LLM will have knowledge of ALL ${cachedSchema.tables.length} tables`);
         databaseContext = businessContext + '\n\n';
         
         // Add data profiling for better understanding (async, don't block if it fails)

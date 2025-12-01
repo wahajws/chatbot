@@ -27,6 +27,7 @@ async function getCompleteSchema() {
     `);
 
     if (tablesResult.rows.length === 0) {
+      console.log('[Schema Cache] No tables found in database');
       return { tables: [], totalTables: 0, cachedAt: new Date().toISOString() };
     }
 
@@ -38,9 +39,15 @@ async function getCompleteSchema() {
     };
 
     // Get detailed information for each table
-    // Limit to first 50 tables to avoid too many queries
-    const tablesToProcess = tablesResult.rows.slice(0, 50);
-    console.log(`[Schema Cache] Processing ${tablesToProcess.length} tables (limited to 50 for performance)`);
+    // Process ALL tables to ensure LLM has complete schema knowledge
+    // This is critical - the LLM needs to know about ALL tables to answer questions accurately
+    const tablesToProcess = tablesResult.rows;
+    console.log(`[Schema Cache] Processing ALL ${tablesToProcess.length} tables to ensure complete schema coverage`);
+    console.log(`[Schema Cache] This ensures the LLM has knowledge of every table in the database`);
+    
+    if (tablesToProcess.length > 100) {
+      console.log(`[Schema Cache] ⚠️  Large database detected (${tablesToProcess.length} tables). This may take a few minutes.`);
+    }
     
     for (let i = 0; i < tablesToProcess.length; i++) {
       const table = tablesToProcess[i];
@@ -223,6 +230,15 @@ async function getCompleteSchema() {
       }
     }
 
+    // Verify all tables were processed
+    if (schema.tables.length < schema.totalTables) {
+      console.log(`[Schema Cache] ⚠️  Warning: Only processed ${schema.tables.length} out of ${schema.totalTables} tables`);
+      console.log(`[Schema Cache] Some tables may have failed to process. Check logs above for errors.`);
+    } else {
+      console.log(`[Schema Cache] ✓ Successfully processed all ${schema.tables.length} tables`);
+      console.log(`[Schema Cache] The LLM will now have complete knowledge of all ${schema.tables.length} tables`);
+    }
+
     // Get pgvector extension info
     try {
       const vectorExtResult = await queryWithRetry(`
@@ -322,17 +338,87 @@ export async function loadCachedSchema() {
 }
 
 /**
- * Get schema (from cache or fetch fresh)
+ * Check if cached schema is stale (older than maxAge hours)
+ * @param {Object} schema - The cached schema object
+ * @param {number} maxAgeHours - Maximum age in hours (default: 1 hour)
+ * @returns {boolean} - True if cache is stale
  */
-export async function getSchema(useCache = true) {
+function isCacheStale(schema, maxAgeHours = 1) {
+  if (!schema || !schema.cachedAt) {
+    return true; // No cache or no timestamp = stale
+  }
+
+  try {
+    const cachedTime = new Date(schema.cachedAt);
+    const now = new Date();
+    const ageInHours = (now - cachedTime) / (1000 * 60 * 60);
+    
+    const isStale = ageInHours > maxAgeHours;
+    if (isStale) {
+      console.log(`[Schema Cache] Cache is stale: ${ageInHours.toFixed(2)} hours old (max: ${maxAgeHours} hours)`);
+    } else {
+      console.log(`[Schema Cache] Cache is fresh: ${ageInHours.toFixed(2)} hours old`);
+    }
+    
+    return isStale;
+  } catch (error) {
+    console.error('[Schema Cache] Error checking cache age:', error.message);
+    return true; // If we can't check, assume stale
+  }
+}
+
+/**
+ * Force refresh the schema cache
+ * @returns {Promise<Object|null>} - The fresh schema or null if failed
+ */
+export async function refreshSchema() {
+  console.log('[Schema Cache] Force refreshing schema cache...');
+  const fresh = await getCompleteSchema();
+  if (fresh) {
+    await cacheSchema();
+    console.log('[Schema Cache] ✓ Schema cache refreshed successfully');
+  } else {
+    console.log('[Schema Cache] ✗ Failed to refresh schema cache');
+  }
+  return fresh;
+}
+
+/**
+ * Get schema (from cache or fetch fresh)
+ * Automatically refreshes if cache is stale (older than 1 hour)
+ * @param {boolean} useCache - Whether to use cache (default: true)
+ * @param {boolean} forceRefresh - Force refresh even if cache is fresh (default: false)
+ * @param {number} maxAgeHours - Maximum cache age in hours before auto-refresh (default: 1)
+ * @returns {Promise<Object|null>} - The schema object or null
+ */
+export async function getSchema(useCache = true, forceRefresh = false, maxAgeHours = 1) {
+  // If force refresh is requested, skip cache
+  if (forceRefresh) {
+    console.log('[Schema Cache] Force refresh requested, fetching fresh schema...');
+    return await refreshSchema();
+  }
+
   if (useCache) {
     const cached = await loadCachedSchema();
     if (cached) {
+      // Check if cache is stale
+      if (isCacheStale(cached, maxAgeHours)) {
+        console.log('[Schema Cache] Cache is stale, refreshing automatically...');
+        // Try to refresh in background, but return cached version immediately
+        // This ensures we always have data, even if refresh fails
+        refreshSchema().catch(err => {
+          console.error('[Schema Cache] Background refresh failed:', err.message);
+        });
+        // Still return cached version for now, but it will be fresh next time
+        return cached;
+      }
+      // Cache is fresh, return it
       return cached;
     }
   }
 
-  // If no cache or cache disabled, fetch fresh
+  // No cache or cache disabled, fetch fresh
+  console.log('[Schema Cache] No valid cache, fetching fresh schema...');
   const fresh = await getCompleteSchema();
   if (fresh) {
     // Cache it for next time

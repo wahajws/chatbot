@@ -41,12 +41,34 @@ async function getCompleteSchema() {
     // Get detailed information for each table
     // Process ALL tables to ensure LLM has complete schema knowledge
     // This is critical - the LLM needs to know about ALL tables to answer questions accurately
+    // OPTIMIZATION: Using parallel queries and pg_stat for row counts to improve performance
     const tablesToProcess = tablesResult.rows;
     console.log(`[Schema Cache] Processing ALL ${tablesToProcess.length} tables to ensure complete schema coverage`);
     console.log(`[Schema Cache] This ensures the LLM has knowledge of every table in the database`);
     
     if (tablesToProcess.length > 100) {
-      console.log(`[Schema Cache] ⚠️  Large database detected (${tablesToProcess.length} tables). This may take a few minutes.`);
+      console.log(`[Schema Cache] ⚠️  Large database detected (${tablesToProcess.length} tables). Using optimized queries for speed.`);
+    }
+
+    // OPTIMIZATION: Get approximate row counts from pg_stat_user_tables (much faster than COUNT(*))
+    // This is an estimate but accurate enough for schema purposes
+    let rowCountMap = {};
+    try {
+      const statsResult = await queryWithRetry(`
+        SELECT 
+          schemaname,
+          relname as table_name,
+          n_live_tup as row_count
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+      `, [], 1);
+      
+      statsResult.rows.forEach(row => {
+        rowCountMap[row.table_name] = parseInt(row.row_count) || 0;
+      });
+      console.log(`[Schema Cache] ✓ Loaded approximate row counts for ${Object.keys(rowCountMap).length} tables (fast method)`);
+    } catch (statsError) {
+      console.log(`[Schema Cache] Could not get row counts from pg_stat (will skip):`, statsError.message);
     }
     
     for (let i = 0; i < tablesToProcess.length; i++) {
@@ -59,71 +81,45 @@ async function getCompleteSchema() {
       }
       
       try {
-        // Get columns
-        const columnsResult = await queryWithRetry(`
-          SELECT 
-            column_name,
-            data_type,
-            character_maximum_length,
-            is_nullable,
-            column_default,
-            ordinal_position
-          FROM information_schema.columns
-          WHERE table_schema = 'public' 
-            AND table_name = $1
-          ORDER BY ordinal_position
-        `, [tableName], 1); // Only 1 retry for schema queries
-
-        // Get row count (skip for very large tables to save time)
-        let rowCount = 0;
-        try {
-          const countResult = await queryWithRetry(
-            `SELECT COUNT(*) as count FROM "${tableName}"`,
-            [],
-            1 // Only 1 retry
-          );
-          rowCount = parseInt(countResult.rows[0].count);
-        } catch (countError) {
-          // If count fails, skip it (might be a view or permission issue)
-          console.log(`[Schema Cache] Could not get row count for ${tableName}:`, countError.message);
-        }
-
-        // Get indexes
-        let indexesResult = { rows: [] };
-        try {
-          indexesResult = await queryWithRetry(`
+        // OPTIMIZATION: Run independent queries in parallel using Promise.all
+        const [columnsResult, indexesResult, constraintsResult, foreignKeysResult, primaryKeyResult] = await Promise.all([
+          // Get columns
+          queryWithRetry(`
+            SELECT 
+              column_name,
+              data_type,
+              character_maximum_length,
+              is_nullable,
+              column_default,
+              ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = 'public' 
+              AND table_name = $1
+            ORDER BY ordinal_position
+          `, [tableName], 1).catch(() => ({ rows: [] })),
+          
+          // Get indexes
+          queryWithRetry(`
             SELECT 
               indexname,
               indexdef
             FROM pg_indexes
             WHERE tablename = $1
               AND schemaname = 'public'
-          `, [tableName], 1); // Only 1 retry
-        } catch (indexError) {
-          // Skip indexes if query fails
-          console.log(`[Schema Cache] Could not get indexes for ${tableName}:`, indexError.message);
-        }
-
-        // Get constraints
-        let constraintsResult = { rows: [] };
-        try {
-          constraintsResult = await queryWithRetry(`
+          `, [tableName], 1).catch(() => ({ rows: [] })),
+          
+          // Get constraints
+          queryWithRetry(`
             SELECT
               constraint_name,
               constraint_type
             FROM information_schema.table_constraints
             WHERE table_schema = 'public'
               AND table_name = $1
-          `, [tableName], 1); // Only 1 retry
-        } catch (constraintError) {
-          // Skip constraints if query fails
-          console.log(`[Schema Cache] Could not get constraints for ${tableName}:`, constraintError.message);
-        }
-
-        // Get foreign keys (relationships)
-        let foreignKeysResult = { rows: [] };
-        try {
-          foreignKeysResult = await queryWithRetry(`
+          `, [tableName], 1).catch(() => ({ rows: [] })),
+          
+          // Get foreign keys (relationships)
+          queryWithRetry(`
             SELECT
               tc.constraint_name,
               kcu.column_name,
@@ -139,15 +135,10 @@ async function getCompleteSchema() {
             WHERE tc.constraint_type = 'FOREIGN KEY'
               AND tc.table_schema = 'public'
               AND tc.table_name = $1
-          `, [tableName], 1); // Only 1 retry
-        } catch (fkError) {
-          console.log(`[Schema Cache] Could not get foreign keys for ${tableName}:`, fkError.message);
-        }
-
-        // Get primary key columns
-        let primaryKeyResult = { rows: [] };
-        try {
-          primaryKeyResult = await queryWithRetry(`
+          `, [tableName], 1).catch(() => ({ rows: [] })),
+          
+          // Get primary key columns
+          queryWithRetry(`
             SELECT
               kcu.column_name
             FROM information_schema.table_constraints tc
@@ -158,10 +149,13 @@ async function getCompleteSchema() {
               AND tc.table_schema = 'public'
               AND tc.table_name = $1
             ORDER BY kcu.ordinal_position
-          `, [tableName], 1);
-        } catch (pkError) {
-          console.log(`[Schema Cache] Could not get primary key for ${tableName}:`, pkError.message);
-        }
+          `, [tableName], 1).catch(() => ({ rows: [] }))
+        ]);
+
+        // Use approximate row count from pg_stat (much faster than COUNT(*))
+        // Fallback to 0 if not available
+        const rowCount = rowCountMap[tableName] || 0;
+
 
         // Check for vector columns
         const vectorColumns = columnsResult.rows.filter(col => 

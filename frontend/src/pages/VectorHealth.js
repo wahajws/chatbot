@@ -47,7 +47,17 @@ const VectorHealth = () => {
     try {
       setLoading(true);
       const apiUrl = getApiUrl();
-      const response = await axios.get(`${apiUrl}/api/vector-health`);
+      const endpoint = `${apiUrl}/api/vector-health`;
+      console.log('[Frontend API] GET', endpoint);
+      const response = await axios.get(endpoint);
+      console.log('[Frontend API] Response:', {
+        endpoint,
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: response.headers
+      });
+      console.log('[Frontend API] Full Response Object:', response);
       setHealthData(response.data);
       setError(null);
     } catch (err) {

@@ -72,8 +72,28 @@ const Analytics = () => {
       setError(null);
 
       const apiUrl = getApiUrl();
-      const statsRes = await axios.get(`${apiUrl}/api/analytics/stats`);
-      const chartsRes = await axios.get(`${apiUrl}/api/analytics/charts`);
+      const statsEndpoint = `${apiUrl}/api/analytics/stats`;
+      const chartsEndpoint = `${apiUrl}/api/analytics/charts`;
+      console.log('[Frontend API] GET', statsEndpoint);
+      const statsRes = await axios.get(statsEndpoint);
+      console.log('[Frontend API] Response:', {
+        endpoint: statsEndpoint,
+        status: statsRes.status,
+        statusText: statsRes.statusText,
+        data: statsRes.data,
+        headers: statsRes.headers
+      });
+      console.log('[Frontend API] Full Response Object:', statsRes);
+      console.log('[Frontend API] GET', chartsEndpoint);
+      const chartsRes = await axios.get(chartsEndpoint);
+      console.log('[Frontend API] Response:', {
+        endpoint: chartsEndpoint,
+        status: chartsRes.status,
+        statusText: chartsRes.statusText,
+        data: chartsRes.data,
+        headers: chartsRes.headers
+      });
+      console.log('[Frontend API] Full Response Object:', chartsRes);
 
       setStats(statsRes.data?.stats || null);
       setCharts(chartsRes.data?.charts || []);
@@ -88,7 +108,17 @@ const Analytics = () => {
   const fetchSuggestions = async () => {
     try {
       const apiUrl = getApiUrl();
-      const res = await axios.get(`${apiUrl}/api/analytics/suggestions`);
+      const endpoint = `${apiUrl}/api/analytics/suggestions`;
+      console.log('[Frontend API] GET', endpoint);
+      const res = await axios.get(endpoint);
+      console.log('[Frontend API] Response:', {
+        endpoint,
+        status: res.status,
+        statusText: res.statusText,
+        data: res.data,
+        headers: res.headers
+      });
+      console.log('[Frontend API] Full Response Object:', res);
       if (res.data.success) {
         setSuggestions(res.data.suggestions || []);
       }
@@ -113,9 +143,18 @@ const Analytics = () => {
       setError(null);
 
       const apiUrl = getApiUrl();
-      const res = await axios.post(`${apiUrl}/api/analytics/query`, {
-        query: queryText.trim()
+      const endpoint = `${apiUrl}/api/analytics/query`;
+      const requestData = { query: queryText.trim() };
+      console.log('[Frontend API] POST', endpoint, requestData);
+      const res = await axios.post(endpoint, requestData);
+      console.log('[Frontend API] Response:', {
+        endpoint,
+        status: res.status,
+        statusText: res.statusText,
+        data: res.data,
+        headers: res.headers
       });
+      console.log('[Frontend API] Full Response Object:', res);
 
       if (res.data.success && res.data.chart) {
         const newChart = {
@@ -157,10 +196,18 @@ const Analytics = () => {
     try {
       setInsightsLoading(true);
       const apiUrl = getApiUrl();
-      const res = await axios.post(`${apiUrl}/api/analytics/insights`, {
-        chart: chart,
-        query: chart.title
+      const endpoint = `${apiUrl}/api/analytics/insights`;
+      const requestData = { chart: chart, query: chart.title };
+      console.log('[Frontend API] POST', endpoint, requestData);
+      const res = await axios.post(endpoint, requestData);
+      console.log('[Frontend API] Response:', {
+        endpoint,
+        status: res.status,
+        statusText: res.statusText,
+        data: res.data,
+        headers: res.headers
       });
+      console.log('[Frontend API] Full Response Object:', res);
 
       if (res.data.success) {
         setInsights({

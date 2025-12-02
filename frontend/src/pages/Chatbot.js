@@ -30,7 +30,16 @@ const Chatbot = () => {
   const loadChatHistory = async () => {
     try {
       const apiUrl = getApiUrl();
-      const response = await axios.get(`${apiUrl}/api/chat/history?limit=10`);
+      const endpoint = `${apiUrl}/api/chat/history?limit=10`;
+      console.log('[Frontend API] GET', endpoint);
+      const response = await axios.get(endpoint);
+      console.log('[Frontend API] Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: response.headers
+      });
+      console.log('[Frontend API] Full Response Object:', response);
       if (response.data.success && response.data.messages.length > 0) {
         const formattedMessages = response.data.messages
           .reverse()
@@ -68,9 +77,17 @@ const Chatbot = () => {
 
     try {
       const apiUrl = getApiUrl();
-      const response = await axios.post(`${apiUrl}/api/chat`, {
-        message: userMessage
+      const endpoint = `${apiUrl}/api/chat`;
+      const requestData = { message: userMessage };
+      console.log('[Frontend API] POST', endpoint, requestData);
+      const response = await axios.post(endpoint, requestData);
+      console.log('[Frontend API] Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: response.headers
       });
+      console.log('[Frontend API] Full Response Object:', response);
 
       if (response.data.success) {
         const responseText = response.data.response;
